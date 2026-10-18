@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: smart-campus-jabin
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=pc-jabin-science-college-bca-smart-campus-key-2026
+    volumes:
+      - campus_db_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  campus_db_data:
