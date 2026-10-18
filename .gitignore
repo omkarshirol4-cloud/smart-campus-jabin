@@ -1,0 +1,18 @@
+# Python & Virtual Environment
+.venv/
+env/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# SQLite Database (auto-generated on first run from seed_data.py)
+*.db
+*.sqlite
+*.sqlite3
+
+# Operating System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
