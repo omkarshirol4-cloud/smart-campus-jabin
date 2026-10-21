@@ -8,13 +8,13 @@
 
 ## Problem statement
 
-Campus facilities and specialized computer laboratories in educational institutions are heavily contended resources: seminar halls are needed for guest lectures, computer labs host regular practicals and final-year capstone coding, digital classrooms support interactive pedagogy, and portable AV equipment (projectors and PA sound systems) moves between wings. 
+Campus facilities and specialized computer laboratories in educational institutions are heavily contended resources: seminar halls are needed for guest lectures, computer labs host regular practicals and final-year capstone coding, and digital classrooms support interactive pedagogy. 
 
 Most colleges handle this through **manual logbooks, verbal permissions, or unstructured messaging groups**. This leads to:
 1. **Frequent Double-Bookings**: Two faculty members or student batches arriving at the same lab or seminar hall simultaneously.
-2. **Zero Auditability**: No reliable record of who authorized a booking, when equipment was taken, or why a room was occupied.
+2. **Zero Auditability**: No reliable record of who authorized a booking or why a room was occupied.
 3. **Stale Availability Information**: Students and staff walking across campus to check if a lab is free.
-4. **Untracked Maintenance**: Faulty Wi-Fi routers, broken HDMI cables, or crackling PA systems reported verbally and forgotten.
+4. **Untracked Maintenance**: Faulty Wi-Fi routers, broken HDMI cables, or display issues reported verbally and forgotten.
 
 ---
 
@@ -37,7 +37,7 @@ Given a facility + date + time interval, the engine verifies availability, enfor
    ```sql
    (start_time < new_end) AND (end_time > new_start)
    ```
-   No room or portable equipment can ever have concurrent pending or approved reservations.
+   No room, hall, or laboratory can ever have concurrent pending or approved reservations.
 2. **Immutable Audit Trail**: All authentication events, reservation submissions, approvals, rejections, and cancellations are written to an append-only ledger (`audit_logs`) with user email, timestamp, and action code.
 3. **Zero External Dependencies / Completely Offline**: Runs without external accounts, cloud subscriptions, or paid API keys. Everything runs locally with Python Flask, SQLite, and Tailwind CSS.
 
@@ -69,7 +69,7 @@ Flask Application Controller (app.py)
                     ▼
 SQLite Single-File Database (campus.db)
    ├── users (students, faculty, administrators)
-   ├── resources (rooms, specialized labs, AV equipment)
+   ├── resources (rooms, digital classrooms, specialized labs)
    ├── bookings (pending, approved, rejected, cancelled)
    ├── issues (maintenance tickets)
    ├── audit_logs (append-only ledger)
@@ -169,7 +169,7 @@ Access the application at **[http://localhost:5000](http://localhost:5000)**.
 A complete 3–5 minute evaluation guide is documented in **[DEMO.md](DEMO.md)**:
 
 1. **Custom Identity Login** — enter any custom name (e.g. `Omkar`), pick a role, and verify the header syncs the identity.
-2. **Facility Exploration** — filter by `Room` or `Equipment` and check real-time availability.
+2. **Facility Exploration** — search across classrooms, seminar halls, and laboratories, and check real-time availability.
 3. **Booking Request** — reserve Classroom 1 or Computer Lab 1 with a session purpose.
 4. **Collision Block Test** — submit an overlapping request for the same room; witness the immediate mathematical blockage.
 5. **Admin Decision Hub** — log in as administrator, review the pending queue, approve or reject with 1 click, and inspect the security audit trail.
@@ -209,10 +209,6 @@ All facilities are configured in one central file: [seed_data.py](seed_data.py),
 | **College Seminar Hall** | Room | 150 | Main Block, 2nd Floor | Central auditorium with Ahuja PA sound system & stage lights |
 | **Library Discussion Area**| Room | 30 | Central Library, 1st Floor | Round tables & magnetic whiteboards for group study |
 | **Indoor Games Room** | Room | 40 | Gymkhana Complex | Table tennis, carrom boards & chess stations |
-| **Epson Full HD Projector**| Equipment | 1 | BCA Dept Office (Cabinet A1) | Portable 4000 lumens projector with HDMI & tripod |
-| **BenQ Portable Projector**| Equipment | 1 | BCA Dept Office (Cabinet A2) | Portable high-contrast projector for extra classes |
-| **Ahuja PA Sound System** | Equipment | 1 | BCA Dept Office (Audio Rack) | Rechargeable PA amplifier with dual wireless microphones |
-| **Mobile Laptop Cart** | Equipment | 20 | BCA Dept Office (Charging) | Mobile lockable cart with 20 charged Dell laptops |
 
 ---
 
@@ -234,11 +230,10 @@ All facilities are configured in one central file: [seed_data.py](seed_data.py),
 
 ---
 
-## Demo & Official Timetable Accounts
+## Demo Accounts
 
-All accounts share the password: **`password123`** (with instant 1-click fill buttons on the sign-in card):
-- **Student**: `student@demo.edu` (Rahul Patil, BCA III A1 Ubuntu, Reg: 225AI015)
-- **Faculty (AI / AIML Lab)**: `prof.maheshrao@jabin.edu` (Prof. Maheshrao)
-- **Faculty (Advance Java)**: `prof.sharada@jabin.edu` (Prof. Sharada M)
-- **Faculty (Cyber Security)**: `staff@demo.edu` (Prof. Savita G)
-- **Administrator**: `admin@demo.edu` (Dr. R. M. Hiremath)
+All accounts share the default password: **`password123`** (with instant 1-click fill buttons on the sign-in card):
+- **Student**: `student@demo.edu` (Rahul Patil, BCA 5th Sem)
+- **Faculty Coordinator**: `staff@demo.edu` (Faculty Coordinator, BCA Faculty)
+- **Faculty Lab In-Charge**: `faculty.labs@jabin.edu` (Faculty Lab In-Charge, BCA Laboratories)
+- **Campus Administrator**: `admin@demo.edu` (Campus Administration)

@@ -23,7 +23,7 @@
 ## 🎬 The Walkthrough Script (Step by Step)
 
 ### Step 1: The Core Problem & College Context (30 seconds)
-> *"Welcome! In our college, BCA students and faculty frequently need Seminar Halls, Computer Labs, Smart Digital Classrooms, and portable gear like projectors and sound systems. Traditionally, scheduling happened via manual sign-up sheets or verbal requests, which led to double bookings, clashes, and zero accountability.*  
+> *"Welcome! In our college, BCA students and faculty frequently need Seminar Halls, Computer Labs, and Smart Digital Classrooms. Traditionally, scheduling happened via manual sign-up sheets or verbal requests, which led to double bookings, clashes, and zero accountability.*  
 > *We built this Smart Campus Platform with zero external frameworks or APIs: pure Python Flask, SQLite, and Tailwind CSS."*
 
 ---
@@ -43,11 +43,10 @@
 ### Step 3: Facility Inventory & Live Availability Check (45 seconds)
 1. Click **Facilities & Rooms** in the top navigation bar (`/resources`).
 2. Show the real college facility catalog:
-   - Seminar Hall (100+ capacity, amplifiers, overhead projector)
-   - Computer Labs 1 & 2
-   - Language Lab
-   - Smart Digital Classrooms 1 & 2
-   - Portable Projectors & Ahuja PA Sound Systems
+   - College Seminar Hall (150 capacity, sound system, stage lighting)
+   - Specialized Laboratories (Samza AIML Lab, Hadoop Big Data Lab, Flink Lab, Cloudera Labs)
+   - Language Laboratory & Library Discussion Area
+   - Smart Digital Classrooms (Ubuntu Hall, Windows Hall, iOS Hall, Fedora Hall)
 3. Type `"Lab"` into the Search box and hit Filter — watch the list filter down instantly.
 4. Show the **Check Date Availability** filter: pick today's date and a time slot to see instant live `Available` vs `Booked for Slot` status indicators.
 

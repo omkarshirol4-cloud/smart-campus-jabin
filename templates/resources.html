@@ -1,8 +1,8 @@
 <!-- templates/resources.html -->
-<!-- Campus Facilities and Equipment Directory with live Search & Availability Checker -->
+<!-- Campus Facilities and Laboratories Directory with live Search & Availability Checker -->
 {% extends "base.html" %}
 
-{% block title %}Campus Facilities & Equipment{% endblock %}
+{% block title %}Campus Facilities & Labs{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
@@ -10,7 +10,7 @@
     <!-- Page Header & Action -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-            <h2 class="text-2xl font-bold text-slate-800">Campus Facilities & Equipment</h2>
+            <h2 class="text-2xl font-bold text-slate-800">Campus Facilities & Laboratories</h2>
             <p class="text-xs sm:text-sm text-slate-500">KLE Society's P.C. Jabin Science College &bull; BCA Department Inventory</p>
         </div>
         <a href="{{ url_for('book_facility') }}"
@@ -27,7 +27,7 @@
                 <!-- Search text -->
                 <div>
                     <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Search Keyword</label>
-                    <input type="text" name="q" value="{{ query }}" placeholder="e.g. Lab, Projector, Seminar"
+                    <input type="text" name="q" value="{{ query }}" placeholder="e.g. Lab, Ubuntu, Seminar"
                            class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                 </div>
 
@@ -35,9 +35,8 @@
                 <div>
                     <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Facility Type</label>
                     <select name="type" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                        <option value="">All Types (Rooms & Gear)</option>
-                        <option value="Room" {% if selected_type == 'Room' %}selected{% endif %}>Rooms & Laboratories</option>
-                        <option value="Equipment" {% if selected_type == 'Equipment' %}selected{% endif %}>Portable Equipment</option>
+                        <option value="">All Facilities & Labs</option>
+                        <option value="Room" {% if selected_type == 'Room' %}selected{% endif %}>Classrooms & Laboratories</option>
                     </select>
                 </div>
 
@@ -112,7 +111,7 @@
                             {% endif %}
                         {% else %}
                             <span class="text-xs text-slate-400">
-                                {% if r.type == 'Room' %}Capacity: {{ r.capacity }}{% else %}Quantity: {{ r.capacity }}{% endif %}
+                                Capacity: {{ r.capacity }}
                             </span>
                         {% endif %}
                     </div>
