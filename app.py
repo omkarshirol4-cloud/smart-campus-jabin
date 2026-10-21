@@ -13,6 +13,9 @@ app = Flask(__name__)
 # Secret key used by Flask to securely sign session cookies
 app.secret_key = "pc-jabin-science-college-bca-smart-campus-key-2026"
 
+# Ensure database and seed data are initialized automatically on boot
+database.init_db()
+
 
 # Standard operating booking time slots (9:00 AM to 5:00 PM)
 TIME_SLOTS = [
