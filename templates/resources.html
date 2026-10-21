@@ -1,0 +1,157 @@
+<!-- templates/resources.html -->
+<!-- Campus Facilities and Equipment Directory with live Search & Availability Checker -->
+{% extends "base.html" %}
+
+{% block title %}Campus Facilities & Equipment{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Page Header & Action -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-800">Campus Facilities & Equipment</h2>
+            <p class="text-xs sm:text-sm text-slate-500">KLE Society's P.C. Jabin Science College &bull; BCA Department Inventory</p>
+        </div>
+        <a href="{{ url_for('book_facility') }}"
+           class="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-xs shadow-sm transition">
+            + Reserve a Facility
+        </a>
+    </div>
+
+    <!-- Search & Availability Checker Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <form action="{{ url_for('list_resources') }}" method="GET" class="space-y-4">
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <!-- Search text -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Search Keyword</label>
+                    <input type="text" name="q" value="{{ query }}" placeholder="e.g. Lab, Projector, Seminar"
+                           class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <!-- Type filter -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Facility Type</label>
+                    <select name="type" class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                        <option value="">All Types (Rooms & Gear)</option>
+                        <option value="Room" {% if selected_type == 'Room' %}selected{% endif %}>Rooms & Laboratories</option>
+                        <option value="Equipment" {% if selected_type == 'Equipment' %}selected{% endif %}>Portable Equipment</option>
+                    </select>
+                </div>
+
+                <!-- Date check -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Check Date Availability</label>
+                    <input type="date" name="date" value="{{ check_date }}" min="{{ today }}"
+                           class="w-full px-3 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <!-- Time slot check -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Time Slot</label>
+                    <div class="flex items-center space-x-1">
+                        <select name="start" class="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white font-mono">
+                            <option value="">Start</option>
+                            {% for t in time_slots[:-1] %}
+                                <option value="{{ t }}" {% if check_start == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                        <span class="text-xs text-slate-400">-</span>
+                        <select name="end" class="w-1/2 px-2 py-1.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white font-mono">
+                            <option value="">End</option>
+                            {% for t in time_slots[1:] %}
+                                <option value="{{ t }}" {% if check_end == t %}selected{% endif %}>{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                <span class="text-xs text-slate-400">
+                    Showing {{ resources|length }} facility item{{ 's' if resources|length != 1 else '' }}
+                </span>
+                <div class="space-x-2">
+                    {% if query or selected_type or check_date %}
+                        <a href="{{ url_for('list_resources') }}" class="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700">
+                            Clear Filters
+                        </a>
+                    {% endif %}
+                    <button type="submit" class="px-4 py-1.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg text-xs font-semibold shadow-xs">
+                        Filter & Check Availability
+                    </button>
+                </div>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Facilities Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {% for r in resources %}
+            {% set is_busy = (r.id in busy_resource_ids) %}
+            <div class="bg-white rounded-xl shadow-xs border border-slate-200 p-5 flex flex-col justify-between hover:border-indigo-300 transition">
+                <div>
+                    <!-- Top Type & Status Badge -->
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold {% if r.type == 'Room' %}bg-blue-50 text-blue-700 border border-blue-200{% else %}bg-purple-50 text-purple-700 border border-purple-200{% endif %}">
+                            {{ r.type }}
+                        </span>
+
+                        {% if check_date and check_start and check_end %}
+                            {% if is_busy %}
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Booked for Slot
+                                </span>
+                            {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Available
+                                </span>
+                            {% endif %}
+                        {% else %}
+                            <span class="text-xs text-slate-400">
+                                {% if r.type == 'Room' %}Capacity: {{ r.capacity }}{% else %}Quantity: {{ r.capacity }}{% endif %}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    <!-- Facility Name & Location -->
+                    <h3 class="font-bold text-slate-900 text-base">{{ r.name }}</h3>
+                    <p class="text-xs text-indigo-700 font-medium mt-0.5 flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        {{ r.location }}
+                    </p>
+
+                    <!-- Description -->
+                    <p class="text-xs text-slate-600 mt-2 line-clamp-3">
+                        {{ r.description }}
+                    </p>
+                </div>
+
+                <!-- Book Button -->
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <span class="text-[11px] text-slate-400">
+                        Operational: 9 AM - 5 PM
+                    </span>
+                    <a href="{{ url_for('book_facility', resource_id=r.id) }}"
+                       class="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white font-semibold text-xs rounded-lg transition">
+                        Reserve &rarr;
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <!-- Empty state -->
+            <div class="col-span-full bg-white rounded-xl border border-slate-200 p-12 text-center">
+                <p class="text-sm font-semibold text-slate-700">No matching facilities found</p>
+                <p class="text-xs text-slate-400 mt-1">Try searching for "Lab", "Seminar", or clear your filter criteria.</p>
+                <a href="{{ url_for('list_resources') }}" class="inline-block mt-3 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">
+                    Show All Facilities
+                </a>
+            </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}
