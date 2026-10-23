@@ -242,6 +242,7 @@ def dashboard():
             ORDER BY i.created_at DESC
         """).fetchall()
 
+        total_classes = conn.execute("SELECT COUNT(*) AS count FROM timetable_classes").fetchone()["count"]
         audit_logs = conn.execute("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 15").fetchall()
         conn.close()
 
@@ -253,7 +254,8 @@ def dashboard():
             approved_count=approved_count,
             open_issues=open_issues,
             audit_logs=audit_logs,
-            total_resources=total_resources
+            total_resources=total_resources,
+            total_classes=total_classes
         )
 
     conn.close()
@@ -320,10 +322,38 @@ def book_facility():
         # 4. Check resource existence
         resource = conn.execute("SELECT * FROM resources WHERE id = ? AND is_active = 1", (resource_id,)).fetchone()
         if not resource:
-            flash("Selected facility or equipment was not found.", "error")
+            flash("Selected facility was not found.", "error")
             resources = conn.execute("SELECT * FROM resources WHERE is_active = 1 ORDER BY type, name").fetchall()
             conn.close()
             return render_template("book.html", resources=resources, today=today_str, time_slots=TIME_SLOTS)
+
+        # 4B. TIMETABLE CURRICULUM CLASS CHECK:
+        # Check if an official curriculum class is scheduled in this room/lab at this time
+        day_of_week = parsed_date.strftime("%A")  # 'Monday', 'Tuesday', ...
+        if day_of_week == "Sunday":
+            flash("Campus facilities are closed on Sundays. Please select a date from Monday to Saturday.", "error")
+            resources = conn.execute("SELECT * FROM resources WHERE is_active = 1 ORDER BY type, name").fetchall()
+            conn.close()
+            return render_template("book.html", resources=resources, today=today_str, time_slots=TIME_SLOTS, selected_resource_id=int(resource_id))
+
+        timetable_conflict = conn.execute("""
+            SELECT * FROM timetable_classes
+            WHERE resource_id = ?
+              AND day_of_week = ?
+              AND (start_time < ? AND end_time > ?)
+        """, (resource_id, day_of_week, end_time, start_time)).fetchone()
+
+        if timetable_conflict:
+            flash(
+                f"Timetable Conflict Blocked! '{resource['name']}' is assigned on {day_of_week}s "
+                f"from {timetable_conflict['start_time']} to {timetable_conflict['end_time']} "
+                f"for scheduled class: '{timetable_conflict['course_name']}' ({timetable_conflict['division']}). "
+                f"Official academic classes cannot be displaced by manual bookings.",
+                "error"
+            )
+            resources = conn.execute("SELECT * FROM resources WHERE is_active = 1 ORDER BY type, name").fetchall()
+            conn.close()
+            return render_template("book.html", resources=resources, today=today_str, time_slots=TIME_SLOTS, selected_resource_id=int(resource_id))
 
         # 5. DOUBLE-BOOKING CHECK:
         # Check if another booking for this resource on this date overlaps with requested slot
@@ -582,7 +612,7 @@ def cancel_booking(booking_id):
 @login_required
 def list_resources():
     """
-    List all rooms and equipment with search and live availability checker.
+    List all rooms and laboratories with search, weekly schedule insights, and live availability checker.
     """
     query = request.args.get("q", "").strip()
     r_type = request.args.get("type", "").strip()
@@ -606,17 +636,53 @@ def list_resources():
     sql += " ORDER BY type, name"
     resources = conn.execute(sql, params).fetchall()
 
-    # If availability filter is specified, determine which resources are busy
+    # Preload scheduled classes for each resource to show on cards
+    all_schedules = conn.execute("""
+        SELECT resource_id, day_of_week, start_time, end_time, course_name, division
+        FROM timetable_classes
+        ORDER BY CASE day_of_week WHEN 'Monday' THEN 1 WHEN 'Tuesday' THEN 2 WHEN 'Wednesday' THEN 3 WHEN 'Thursday' THEN 4 WHEN 'Friday' THEN 5 WHEN 'Saturday' THEN 6 ELSE 7 END, start_time
+    """).fetchall()
+    
+    resource_classes_map = {}
+    for s in all_schedules:
+        rid = s["resource_id"]
+        if rid not in resource_classes_map:
+            resource_classes_map[rid] = []
+        resource_classes_map[rid].append(dict(s))
+
+    # If availability filter is specified, check both user bookings AND timetable classes
     busy_resource_ids = set()
+    timetable_busy_map = {}
+    booking_busy_map = {}
+
     if check_date and check_start and check_end and check_start < check_end:
+        # 1. User reservations
         conflicts = conn.execute("""
-            SELECT resource_id 
+            SELECT resource_id, start_time, end_time, purpose 
             FROM bookings 
             WHERE booking_date = ? 
               AND status IN ('pending', 'approved')
               AND (start_time < ? AND end_time > ?)
         """, (check_date, check_end, check_start)).fetchall()
-        busy_resource_ids = {c["resource_id"] for c in conflicts}
+        for c in conflicts:
+            busy_resource_ids.add(c["resource_id"])
+            booking_busy_map[c["resource_id"]] = f"Reserved ({c['start_time']}-{c['end_time']})"
+
+        # 2. Timetable curriculum classes
+        try:
+            day_name = datetime.strptime(check_date, "%Y-%m-%d").strftime("%A")
+            if day_name != "Sunday":
+                t_conflicts = conn.execute("""
+                    SELECT resource_id, course_name, division, start_time, end_time
+                    FROM timetable_classes
+                    WHERE day_of_week = ?
+                      AND (start_time < ? AND end_time > ?)
+                """, (day_name, check_end, check_start)).fetchall()
+                for tc in t_conflicts:
+                    busy_resource_ids.add(tc["resource_id"])
+                    timetable_busy_map[tc["resource_id"]] = f"{tc['course_name']} ({tc['division']})"
+        except ValueError:
+            pass
 
     conn.close()
 
@@ -629,8 +695,78 @@ def list_resources():
         check_start=check_start,
         check_end=check_end,
         busy_resource_ids=busy_resource_ids,
+        timetable_busy_map=timetable_busy_map,
+        booking_busy_map=booking_busy_map,
+        resource_classes_map=resource_classes_map,
         time_slots=TIME_SLOTS,
         today=date.today().isoformat()
+    )
+
+
+@app.route("/timetable")
+@login_required
+def view_timetable():
+    """
+    Visual Academic Timetable Explorer:
+    Displays official curriculum lecture and lab schedules extracted from college timetables.
+    Filter by Day of the Week, Division, or Facility.
+    """
+    day = request.args.get("day", "").strip()
+    division = request.args.get("division", "").strip()
+    room_id = request.args.get("room_id", "").strip()
+
+    conn = database.get_db()
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+    divisions = conn.execute("SELECT DISTINCT division FROM timetable_classes ORDER BY division").fetchall()
+    rooms = conn.execute("SELECT DISTINCT r.id, r.name FROM resources r JOIN timetable_classes tc ON r.id = tc.resource_id ORDER BY r.name").fetchall()
+
+    sql = """
+        SELECT tc.*, r.name as room_name, r.location
+        FROM timetable_classes tc
+        JOIN resources r ON tc.resource_id = r.id
+        WHERE 1 = 1
+    """
+    params = []
+
+    if day and day in days:
+        sql += " AND tc.day_of_week = ?"
+        params.append(day)
+    if division:
+        sql += " AND tc.division = ?"
+        params.append(division)
+    if room_id:
+        sql += " AND tc.resource_id = ?"
+        params.append(room_id)
+
+    sql += """ ORDER BY 
+        CASE tc.day_of_week 
+            WHEN 'Monday' THEN 1 
+            WHEN 'Tuesday' THEN 2 
+            WHEN 'Wednesday' THEN 3 
+            WHEN 'Thursday' THEN 4 
+            WHEN 'Friday' THEN 5 
+            WHEN 'Saturday' THEN 6 
+            ELSE 7 
+        END, 
+        tc.start_time, 
+        r.name
+    """
+
+    classes = conn.execute(sql, params).fetchall()
+    total_classes = conn.execute("SELECT COUNT(*) as c FROM timetable_classes").fetchone()["c"]
+    conn.close()
+
+    return render_template(
+        "timetable.html",
+        classes=classes,
+        days=days,
+        divisions=divisions,
+        rooms=rooms,
+        selected_day=day,
+        selected_division=division,
+        selected_room=room_id,
+        total_classes=total_classes
     )
 
 

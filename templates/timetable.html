@@ -1,0 +1,177 @@
+<!-- templates/timetable.html -->
+<!-- Academic Class Timetable Viewer: Displays scheduled lectures & practical labs from official college timetables -->
+{% extends "base.html" %}
+
+{% block title %}Class Timetables{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Page Header & Action -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                <span>📅 Academic Class Timetables</span>
+                <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    {{ total_classes }} Scheduled Sessions
+                </span>
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">
+                Official recurring lecture and lab practical schedules across BCA I, III, and V Semesters (Mon–Sat).
+            </p>
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('list_resources') }}"
+               class="px-3 py-2 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-xs transition">
+                &larr; View Facilities
+            </a>
+            <a href="{{ url_for('book_facility') }}"
+               class="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-xs transition flex items-center gap-1.5">
+                <span>+</span> Reserve a Facility
+            </a>
+        </div>
+    </div>
+
+    <!-- Timetable Filter Card -->
+    <div class="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5">
+        <form action="{{ url_for('view_timetable') }}" method="GET" class="space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                
+                <!-- Day filter -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Day of Week</label>
+                    <select name="day" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                        <option value="">All Days (Monday – Saturday)</option>
+                        {% for d in days %}
+                            <option value="{{ d }}" {% if selected_day == d %}selected{% endif %}>{{ d }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Division filter -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Semester & Division</label>
+                    <select name="division" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                        <option value="">All Divisions</option>
+                        {% for div in divisions %}
+                            <option value="{{ div.division }}" {% if selected_division == div.division %}selected{% endif %}>{{ div.division }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Room / Lab filter -->
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">Classroom / Laboratory</label>
+                    <select name="room_id" class="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                        <option value="">All Rooms & Labs</option>
+                        {% for r in rooms %}
+                            <option value="{{ r.id }}" {% if selected_room == r.id|string %}selected{% endif %}>{{ r.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                <span class="text-slate-500">
+                    Showing <strong class="text-slate-800">{{ classes|length }}</strong> sessions matching criteria
+                </span>
+                <div class="flex items-center gap-2">
+                    {% if selected_day or selected_division or selected_room %}
+                        <a href="{{ url_for('view_timetable') }}" class="px-3 py-1.5 text-slate-500 hover:text-slate-800 font-medium transition">
+                            Reset Filters
+                        </a>
+                    {% endif %}
+                    <button type="submit"
+                            class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-xs transition">
+                        Apply Filter
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Conflict Engine Notice Card -->
+    <div class="p-4 rounded-xl bg-blue-50/70 border border-blue-200/80 text-blue-900 text-xs flex items-start gap-3 shadow-xs">
+        <div class="p-1.5 rounded-lg bg-blue-100 text-blue-700 shrink-0 mt-0.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        </div>
+        <div>
+            <p class="font-bold text-blue-900">Automatic Timetable Conflict Protection</p>
+            <p class="text-blue-700 mt-0.5 leading-relaxed">
+                All classrooms and specialized tech laboratories listed below are protected from overlapping reservation requests. 
+                Any booking submitted by students or faculty during an assigned curriculum period is automatically blocked.
+            </p>
+        </div>
+    </div>
+
+    <!-- Timetable Cards Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% for c in classes %}
+            <div class="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs hover:border-indigo-300 hover:shadow-sm transition flex flex-col justify-between group">
+                <div>
+                    <!-- Header with Day and Time Badge -->
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold 
+                            {% if c.day_of_week == 'Monday' %}bg-sky-50 text-sky-700 border border-sky-200
+                            {% elif c.day_of_week == 'Tuesday' %}bg-emerald-50 text-emerald-700 border border-emerald-200
+                            {% elif c.day_of_week == 'Wednesday' %}bg-purple-50 text-purple-700 border border-purple-200
+                            {% elif c.day_of_week == 'Thursday' %}bg-amber-50 text-amber-700 border border-amber-200
+                            {% elif c.day_of_week == 'Friday' %}bg-rose-50 text-rose-700 border border-rose-200
+                            {% else %}bg-indigo-50 text-indigo-700 border border-indigo-200{% endif %}">
+                            <span>{{ c.day_of_week }}</span>
+                        </span>
+                        <span class="text-xs font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                            {{ c.start_time }} – {{ c.end_time }}
+                        </span>
+                    </div>
+
+                    <!-- Course Title -->
+                    <h3 class="font-bold text-slate-900 text-sm mt-2 leading-snug group-hover:text-indigo-600 transition">
+                        {{ c.course_name }}
+                    </h3>
+
+                    <!-- Division badge -->
+                    <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700">
+                            {{ c.division }}
+                        </span>
+                        {% if 'Lab' in c.course_name %}
+                            <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                                Practical Lab
+                            </span>
+                        {% else %}
+                            <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-50 text-slate-600 border border-slate-200">
+                                Lecture
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Footer with Room and Link -->
+                <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <div class="flex items-center gap-1 text-slate-600">
+                        <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        <span class="font-semibold text-slate-800">{{ c.room_name }}</span>
+                    </div>
+                    <a href="{{ url_for('list_resources', q=c.room_name) }}"
+                       class="text-indigo-600 hover:text-indigo-800 font-semibold hover:underline">
+                        Details &rarr;
+                    </a>
+                </div>
+            </div>
+        {% else %}
+            <!-- Empty state -->
+            <div class="col-span-full bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                <p class="text-sm font-semibold text-slate-700">No scheduled classes match your filter</p>
+                <p class="text-xs text-slate-400 mt-1">Try selecting a different day or clearing the filter.</p>
+                <a href="{{ url_for('view_timetable') }}" class="inline-block mt-3 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs rounded-lg font-medium">
+                    Show All Timetables
+                </a>
+            </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}

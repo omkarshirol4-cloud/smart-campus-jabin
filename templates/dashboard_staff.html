@@ -15,12 +15,16 @@
                 <span class="text-xs text-slate-500">{{ user.department }}</span>
             </div>
             <h2 class="text-2xl font-bold text-slate-800 mt-1">Welcome, {{ session.get('user_name') }}</h2>
-            <p class="text-sm text-slate-500">KLE P.C. Jabin Science College &bull; Department of BCA</p>
+            <p class="text-sm text-slate-500">Faculty & Staff Operations Hub</p>
         </div>
-        <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-2">
+            <a href="{{ url_for('view_timetable') }}"
+               class="inline-flex items-center px-3 py-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium text-xs transition border border-indigo-200">
+                📅 Class Timetables
+            </a>
             <a href="{{ url_for('book_facility') }}"
-               class="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-xs shadow-sm transition">
-                + Reserve Hall / Lab
+               class="inline-flex items-center px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs shadow-xs transition">
+                + Reserve Facility
             </a>
             <a href="{{ url_for('list_resources') }}"
                class="inline-flex items-center px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition">

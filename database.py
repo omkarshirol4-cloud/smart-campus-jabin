@@ -115,6 +115,21 @@ def init_db():
     );
     """)
 
+    # 7. Timetable Classes Table (official recurring weekly academic curriculum classes)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS timetable_classes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        resource_id INTEGER NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+        day_of_week TEXT NOT NULL CHECK(day_of_week IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday')),
+        start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL,
+        course_name TEXT NOT NULL,
+        division TEXT NOT NULL,
+        faculty_title TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
     conn.commit()
 
     # Automatically load demo data if database is fresh (empty users table)
@@ -180,10 +195,20 @@ def seed_database(conn):
                 VALUES (?, ?, ?)
             """, (u_id, n["title"], n["message"]))
 
-    # 6. Record Initial Audit Log
+    # 6. Insert Timetable Classes from seed_data.py
+    if hasattr(seed_data, "TIMETABLE_CLASSES"):
+        for tc in seed_data.TIMETABLE_CLASSES:
+            r_id = resource_id_map.get(tc["resource_name"])
+            if r_id:
+                cursor.execute("""
+                    INSERT INTO timetable_classes (resource_id, day_of_week, start_time, end_time, course_name, division, faculty_title)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (r_id, tc["day_of_week"], tc["start_time"], tc["end_time"], tc["course_name"], tc["division"], tc["faculty_title"]))
+
+    # 7. Record Initial Audit Log
     cursor.execute("""
         INSERT INTO audit_logs (user_email, action, details)
-        VALUES ('system', 'SYSTEM_INITIALIZATION', 'Database created and populated with demo resources and users.')
+        VALUES ('system', 'SYSTEM_INITIALIZATION', 'Database created and populated with demo resources, timetable classes, and users.')
     """)
 
     conn.commit()
@@ -196,7 +221,7 @@ def reset_and_seed_db():
     """
     conn = get_db()
     cursor = conn.cursor()
-    tables = ["notifications", "audit_logs", "issues", "bookings", "resources", "users"]
+    tables = ["notifications", "timetable_classes", "audit_logs", "issues", "bookings", "resources", "users"]
     for t in tables:
         cursor.execute(f"DROP TABLE IF EXISTS {t};")
     conn.commit()
