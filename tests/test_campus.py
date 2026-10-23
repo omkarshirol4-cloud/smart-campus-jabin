@@ -265,19 +265,33 @@ class CampusTestSuite(unittest.TestCase):
 
         self.assertIn(b"closed on Sundays", res.data)
 
-    def test_10_timetable_page_renders_classes(self):
-        self.client.get("/logout")
-        self.client.post("/login", data={
-            "email": "student@demo.edu",
-            "password": "password123",
-            "role": "student"
-        }, follow_redirects=True)
+    def test_10_api_check_availability_blocks_12pm_class_conflict(self):
+        # Pick next Monday
+        today = date.today()
+        days_ahead = (7 - today.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7
+        next_monday = (today + timedelta(days=days_ahead)).isoformat()
 
-        res = self.client.get("/timetable")
-        self.assertEqual(res.status_code, 200)
-        self.assertIn(b"Academic Class Timetables", res.data)
-        self.assertIn(b"Ubuntu Hall", res.data)
-        self.assertIn(b"Linear Algebra", res.data)
+        # 1. Check Ubuntu Hall at 12:00 on Monday (Algorithms class is scheduled)
+        res_blocked = self.client.get(
+            f"/api/check-availability?resource_id={self.ubuntu_id}&booking_date={next_monday}&start_time=12:00&end_time=13:00"
+        )
+        self.assertEqual(res_blocked.status_code, 200)
+        data_blocked = res_blocked.get_json()
+        self.assertFalse(data_blocked["available"])
+        self.assertEqual(data_blocked["status"], "timetable_conflict")
+        self.assertEqual(data_blocked["course_name"], "Design and Analysis of Algorithms")
+        self.assertEqual(data_blocked["division"], "BCA III (A1)")
+
+        # 2. Check College Seminar Hall during free afternoon slot (14:00 to 15:00)
+        res_open = self.client.get(
+            f"/api/check-availability?resource_id={self.seminar_id}&booking_date={next_monday}&start_time=14:00&end_time=15:00"
+        )
+        self.assertEqual(res_open.status_code, 200)
+        data_open = res_open.get_json()
+        self.assertTrue(data_open["available"], msg=str(data_open))
+        self.assertEqual(data_open["status"], "available")
 
 if __name__ == "__main__":
     unittest.main()

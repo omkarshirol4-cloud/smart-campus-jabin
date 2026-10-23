@@ -4,7 +4,7 @@
 
 import functools
 from datetime import date, datetime
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import database
 
@@ -430,6 +430,134 @@ def book_facility():
     )
 
 
+@app.route("/api/check-availability")
+def api_check_availability():
+    """
+    Real-time availability check API for the booking form.
+    Immediately verifies whether the selected room, date, and time slot conflicts
+    with an ongoing curriculum class or existing reservation.
+    """
+    resource_id = request.args.get("resource_id", type=int)
+    booking_date = request.args.get("booking_date", "").strip()
+    start_time = request.args.get("start_time", "").strip()
+    end_time = request.args.get("end_time", "").strip()
+
+    if not resource_id or not booking_date or not start_time or not end_time:
+        return jsonify({"status": "incomplete", "available": True, "message": ""})
+
+    if start_time >= end_time:
+        return jsonify({
+            "status": "invalid_time",
+            "available": False,
+            "message": "End time must be later than start time."
+        })
+
+    try:
+        parsed_date = datetime.strptime(booking_date, "%Y-%m-%d").date()
+    except ValueError:
+        return jsonify({"status": "invalid_date", "available": False, "message": "Invalid date format."})
+
+    day_of_week = parsed_date.strftime("%A")
+    if day_of_week == "Sunday":
+        return jsonify({
+            "status": "sunday",
+            "available": False,
+            "message": "Campus facilities are closed on Sundays. Facility cannot be booked."
+        })
+
+    conn = database.get_db()
+    resource = conn.execute("SELECT * FROM resources WHERE id = ? AND is_active = 1", (resource_id,)).fetchone()
+    if not resource:
+        conn.close()
+        return jsonify({"status": "not_found", "available": False, "message": "Facility not found."})
+
+    # 1. Timetable Class Conflict Check
+    timetable_conflict = conn.execute("""
+        SELECT * FROM timetable_classes
+        WHERE resource_id = ?
+          AND day_of_week = ?
+          AND (start_time < ? AND end_time > ?)
+    """, (resource_id, day_of_week, end_time, start_time)).fetchone()
+
+    if timetable_conflict:
+        conn.close()
+        return jsonify({
+            "status": "timetable_conflict",
+            "available": False,
+            "room_name": resource["name"],
+            "course_name": timetable_conflict["course_name"],
+            "division": timetable_conflict["division"],
+            "start_time": timetable_conflict["start_time"],
+            "end_time": timetable_conflict["end_time"],
+            "day_of_week": day_of_week,
+            "message": f"Class in Session: '{timetable_conflict['course_name']}' ({timetable_conflict['division']}) is scheduled in {resource['name']} from {timetable_conflict['start_time']} to {timetable_conflict['end_time']} on {day_of_week}s. You cannot book this room."
+        })
+
+    # 2. Peer Booking Conflict Check
+    conflict = conn.execute("""
+        SELECT b.*, u.full_name as booked_by
+        FROM bookings b
+        JOIN users u ON b.user_id = u.id
+        WHERE b.resource_id = ?
+          AND b.booking_date = ?
+          AND b.status IN ('pending', 'approved')
+          AND (b.start_time < ? AND b.end_time > ?)
+    """, (resource_id, booking_date, end_time, start_time)).fetchone()
+
+    if conflict:
+        conn.close()
+        return jsonify({
+            "status": "booking_conflict",
+            "available": False,
+            "room_name": resource["name"],
+            "booked_by": conflict["booked_by"],
+            "start_time": conflict["start_time"],
+            "end_time": conflict["end_time"],
+            "message": f"Already Booked: '{resource['name']}' is already reserved on {booking_date} from {conflict['start_time']} to {conflict['end_time']} by {conflict['booked_by']}."
+        })
+
+    conn.close()
+    return jsonify({
+        "status": "available",
+        "available": True,
+        "room_name": resource["name"],
+        "message": f"'{resource['name']}' is free and available on {booking_date} from {start_time} to {end_time}."
+    })
+
+
+@app.route("/api/room-schedule")
+def api_room_schedule():
+    """
+    Returns the list of classes scheduled in the selected room on the given date's day-of-week.
+    Used by the booking form to display which hours are taken.
+    """
+    resource_id = request.args.get("resource_id", type=int)
+    booking_date = request.args.get("booking_date", "").strip()
+
+    if not resource_id or not booking_date:
+        return jsonify({"classes": [], "day_of_week": ""})
+
+    try:
+        parsed_date = datetime.strptime(booking_date, "%Y-%m-%d").date()
+        day_of_week = parsed_date.strftime("%A")
+    except ValueError:
+        return jsonify({"classes": [], "day_of_week": ""})
+
+    conn = database.get_db()
+    classes = conn.execute("""
+        SELECT start_time, end_time, course_name, division
+        FROM timetable_classes
+        WHERE resource_id = ? AND day_of_week = ?
+        ORDER BY start_time
+    """, (resource_id, day_of_week)).fetchall()
+    conn.close()
+
+    return jsonify({
+        "day_of_week": day_of_week,
+        "classes": [dict(c) for c in classes]
+    })
+
+
 @app.route("/admin/bookings/<int:booking_id>/approve", methods=["POST"])
 @login_required
 def admin_approve_booking(booking_id):
@@ -707,67 +835,10 @@ def list_resources():
 @login_required
 def view_timetable():
     """
-    Visual Academic Timetable Explorer:
-    Displays official curriculum lecture and lab schedules extracted from college timetables.
-    Filter by Day of the Week, Division, or Facility.
+    Timetable display has been removed per user preference.
+    Redirects to facilities catalog where availability and conflict prevention are enforced.
     """
-    day = request.args.get("day", "").strip()
-    division = request.args.get("division", "").strip()
-    room_id = request.args.get("room_id", "").strip()
-
-    conn = database.get_db()
-    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
-
-    divisions = conn.execute("SELECT DISTINCT division FROM timetable_classes ORDER BY division").fetchall()
-    rooms = conn.execute("SELECT DISTINCT r.id, r.name FROM resources r JOIN timetable_classes tc ON r.id = tc.resource_id ORDER BY r.name").fetchall()
-
-    sql = """
-        SELECT tc.*, r.name as room_name, r.location
-        FROM timetable_classes tc
-        JOIN resources r ON tc.resource_id = r.id
-        WHERE 1 = 1
-    """
-    params = []
-
-    if day and day in days:
-        sql += " AND tc.day_of_week = ?"
-        params.append(day)
-    if division:
-        sql += " AND tc.division = ?"
-        params.append(division)
-    if room_id:
-        sql += " AND tc.resource_id = ?"
-        params.append(room_id)
-
-    sql += """ ORDER BY 
-        CASE tc.day_of_week 
-            WHEN 'Monday' THEN 1 
-            WHEN 'Tuesday' THEN 2 
-            WHEN 'Wednesday' THEN 3 
-            WHEN 'Thursday' THEN 4 
-            WHEN 'Friday' THEN 5 
-            WHEN 'Saturday' THEN 6 
-            ELSE 7 
-        END, 
-        tc.start_time, 
-        r.name
-    """
-
-    classes = conn.execute(sql, params).fetchall()
-    total_classes = conn.execute("SELECT COUNT(*) as c FROM timetable_classes").fetchone()["c"]
-    conn.close()
-
-    return render_template(
-        "timetable.html",
-        classes=classes,
-        days=days,
-        divisions=divisions,
-        rooms=rooms,
-        selected_day=day,
-        selected_division=division,
-        selected_room=room_id,
-        total_classes=total_classes
-    )
+    return redirect(url_for("list_resources"))
 
 
 @app.route("/logout")

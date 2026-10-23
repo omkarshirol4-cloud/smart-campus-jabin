@@ -1,5 +1,5 @@
 <!-- templates/book.html -->
-<!-- Facility and Lab Reservation Form with validation and double-booking checks -->
+<!-- Facility and Lab Reservation Form with real-time timetable conflict blocking -->
 {% extends "base.html" %}
 
 {% block title %}Book a Facility{% endblock %}
@@ -11,11 +11,11 @@
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
             <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Reserve a Campus Facility</h2>
-            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Automated conflict protection against both timetable classes and peer reservations</p>
+            <p class="text-xs sm:text-sm text-slate-500 mt-0.5">Automated conflict protection: rooms with ongoing classes or existing reservations cannot be booked</p>
         </div>
         <div class="flex items-center gap-2">
-            <a href="{{ url_for('view_timetable') }}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 font-medium">
-                📅 Class Timetables
+            <a href="{{ url_for('list_resources') }}" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 font-medium">
+                Browse Rooms
             </a>
             <a href="{{ url_for('dashboard') }}" class="text-xs text-indigo-700 hover:text-indigo-900 font-medium">
                 &larr; Dashboard
@@ -26,12 +26,12 @@
     <!-- Booking Form Card -->
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div class="p-6">
-            <form action="{{ url_for('book_facility') }}" method="POST" class="space-y-5">
+            <form id="booking-form" action="{{ url_for('book_facility') }}" method="POST" class="space-y-5">
                 
                 <!-- Facility Selection -->
                 <div>
                     <label for="resource_id" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        Select Room or Laboratory *
+                        Select Classroom or Laboratory *
                     </label>
                     <select name="resource_id" id="resource_id" required
                             class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">
@@ -55,7 +55,7 @@
                         </label>
                         <input type="date" id="booking_date" name="booking_date" required min="{{ today }}" value="{{ today }}"
                                class="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                        <p class="text-[11px] text-slate-400 mt-1">Past dates are blocked.</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Operating Mon – Sat (Closed Sun).</p>
                     </div>
 
                     <!-- Start Time -->
@@ -66,10 +66,10 @@
                         <select name="start_time" id="start_time" required
                                 class="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-mono">
                             {% for t in time_slots[:-1] %}
-                                <option value="{{ t }}" {% if t == '10:00' %}selected{% endif %}>{{ t }}</option>
+                                <option value="{{ t }}" {% if t == '12:00' %}selected{% endif %}>{{ t }}</option>
                             {% endfor %}
                         </select>
-                        <p class="text-[11px] text-slate-400 mt-1">Campus opens 9:00 AM.</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Operating hours 09:00 to 17:00.</p>
                     </div>
 
                     <!-- End Time -->
@@ -80,11 +80,27 @@
                         <select name="end_time" id="end_time" required
                                 class="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-mono">
                             {% for t in time_slots[1:] %}
-                                <option value="{{ t }}" {% if t == '12:00' %}selected{% endif %}>{{ t }}</option>
+                                <option value="{{ t }}" {% if t == '13:00' %}selected{% endif %}>{{ t }}</option>
                             {% endfor %}
                         </select>
-                        <p class="text-[11px] text-slate-400 mt-1">Must be after start time.</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Must be later than start time.</p>
                     </div>
+                </div>
+
+                <!-- Daily Class Schedule Hint Container (shows classes on selected day for this room) -->
+                <div id="schedule-hint-container" class="hidden p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                    <p class="font-semibold text-slate-700 mb-1.5 flex items-center justify-between">
+                        <span>Classes scheduled in this room on <span id="hint-day-name" class="font-bold text-indigo-700"></span>:</span>
+                        <span class="text-[10px] text-slate-400">Timetable Conflict Engine</span>
+                    </p>
+                    <div id="schedule-chips" class="flex flex-wrap gap-1.5">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                </div>
+
+                <!-- LIVE REAL-TIME AVAILABILITY / CONFLICT STATUS DISPLAY -->
+                <div id="availability-status-container" class="space-y-2">
+                    <!-- Status message will be inserted here dynamically -->
                 </div>
 
                 <!-- Session Purpose -->
@@ -93,36 +109,252 @@
                         Purpose of Booking *
                     </label>
                     <textarea id="purpose" name="purpose" rows="3" required
-                              placeholder="e.g. BCA 5th Sem Mini Project Practical Demo / Guest Lecture on Python Web Development"
+                              placeholder="e.g. BCA Project Practical Demo / Guest Lecture on Web Development"
                               class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                 </div>
 
-                <!-- Rules Banner -->
-                <div class="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 text-xs text-indigo-900 space-y-1.5">
-                    <p class="font-bold flex items-center gap-1.5 text-indigo-950">
-                        <span>🛡️</span> Booking & Conflict Prevention Rules:
-                    </p>
-                    <ul class="list-disc list-inside text-indigo-800 space-y-1 pl-1">
-                        <li>Operating hours are strictly <strong>9:00 AM to 5:00 PM</strong> (campus academic block is closed on Sundays).</li>
-                        <li><strong>Timetable Class Protection:</strong> Rooms and labs assigned to ongoing curriculum lectures and labs (BCA I, III, V) are automatically blocked during scheduled hours. Check <a href="{{ url_for('view_timetable') }}" class="underline font-semibold text-indigo-700">Class Timetables</a> for free slots.</li>
-                        <li><strong>Zero Double-Bookings:</strong> Any overlapping active reservation is mathematically blocked with an instant conflict alert.</li>
-                        <li>Student and faculty reservation requests are queued for administrative approval in the Operations Console.</li>
-                    </ul>
-                </div>
-
                 <!-- Action Buttons -->
-                <div class="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
-                    <a href="{{ url_for('dashboard') }}" class="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition">
-                        Cancel
-                    </a>
-                    <button type="submit"
-                            class="px-5 py-2.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-sm shadow-sm transition">
-                        Confirm & Reserve Facility
-                    </button>
+                <div class="flex items-center justify-between pt-4 border-t border-slate-100">
+                    <div class="text-xs text-slate-400">
+                        <span id="footer-conflict-notice"></span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <a href="{{ url_for('dashboard') }}" class="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition">
+                            Cancel
+                        </a>
+                        <button type="submit" id="submit-booking-btn"
+                                class="px-5 py-2.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-sm shadow-sm transition">
+                            Confirm & Reserve Facility
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
 </div>
+
+<!-- Client-side Real-time Availability & Conflict Verification Script -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const resourceSelect = document.getElementById("resource_id");
+    const dateInput = document.getElementById("booking_date");
+    const startTimeSelect = document.getElementById("start_time");
+    const endTimeSelect = document.getElementById("end_time");
+    const submitBtn = document.getElementById("submit-booking-btn");
+    const form = document.getElementById("booking-form");
+    const statusContainer = document.getElementById("availability-status-container");
+    const scheduleHintContainer = document.getElementById("schedule-hint-container");
+    const scheduleChips = document.getElementById("schedule-chips");
+    const hintDayName = document.getElementById("hint-day-name");
+    const footerNotice = document.getElementById("footer-conflict-notice");
+
+    let isSlotAvailable = true;
+
+    // Helper: update room classes hint chips for selected day
+    function loadRoomDaySchedule() {
+        const resourceId = resourceSelect.value;
+        const bookingDate = dateInput.value;
+
+        if (!resourceId || !bookingDate) {
+            scheduleHintContainer.classList.add("hidden");
+            return;
+        }
+
+        fetch(`/api/room-schedule?resource_id=${encodeURIComponent(resourceId)}&booking_date=${encodeURIComponent(bookingDate)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.classes && data.classes.length > 0) {
+                    hintDayName.textContent = data.day_of_week;
+                    scheduleChips.innerHTML = "";
+                    data.classes.forEach(c => {
+                        const chip = document.createElement("span");
+                        chip.className = "inline-flex items-center gap-1 px-2.5 py-1 rounded bg-rose-50 text-rose-800 border border-rose-200 text-[11px] font-medium";
+                        chip.innerHTML = `<strong>${c.start_time} - ${c.end_time}:</strong> ${c.course_name} <span class="text-rose-600 font-semibold">(${c.division})</span>`;
+                        scheduleChips.appendChild(chip);
+                    });
+                    scheduleHintContainer.classList.remove("hidden");
+                } else {
+                    scheduleHintContainer.classList.add("hidden");
+                }
+            })
+            .catch(() => {
+                scheduleHintContainer.classList.add("hidden");
+            });
+    }
+
+    // Main availability check function
+    function checkSlotAvailability() {
+        const resourceId = resourceSelect.value;
+        const bookingDate = dateInput.value;
+        const startTime = startTimeSelect.value;
+        const endTime = endTimeSelect.value;
+
+        if (!resourceId) {
+            statusContainer.innerHTML = "";
+            submitBtn.disabled = false;
+            setButtonEnabled();
+            return;
+        }
+
+        // Validate time sequence
+        if (startTime >= endTime) {
+            isSlotAvailable = false;
+            statusContainer.innerHTML = `
+                <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-2">
+                    <span class="text-base">⚠️</span>
+                    <span><strong>Invalid Time:</strong> End time (${endTime}) must be later than start time (${startTime}).</span>
+                </div>
+            `;
+            setButtonDisabled("Invalid Time Selected");
+            return;
+        }
+
+        // Call real-time API
+        fetch(`/api/check-availability?resource_id=${encodeURIComponent(resourceId)}&booking_date=${encodeURIComponent(bookingDate)}&start_time=${encodeURIComponent(startTime)}&end_time=${encodeURIComponent(endTime)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.available) {
+                    isSlotAvailable = false;
+
+                    if (data.status === "timetable_conflict") {
+                        statusContainer.innerHTML = `
+                            <div class="p-4 rounded-xl bg-rose-50 border-2 border-rose-400 text-rose-950 shadow-sm transition">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-7 h-7 rounded-full bg-rose-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 mt-0.5">
+                                        ⛔
+                                    </div>
+                                    <div class="flex-grow">
+                                        <h4 class="font-bold text-rose-900 text-sm">Cannot Book: Class in Session!</h4>
+                                        <p class="text-xs text-rose-800 mt-0.5">
+                                            A scheduled timetable class is currently being held in <strong>${data.room_name}</strong> at this time:
+                                        </p>
+                                        <div class="mt-2.5 p-3 bg-white rounded-lg border border-rose-200 text-xs space-y-1">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-500 font-medium">Curriculum Course:</span>
+                                                <span class="font-bold text-rose-700">${data.course_name}</span>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-500 font-medium">Assigned Division:</span>
+                                                <span class="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">${data.division}</span>
+                                            </div>
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-slate-500 font-medium">Class Timing:</span>
+                                                <span class="font-mono font-bold text-indigo-700">${data.start_time} to ${data.end_time} (${data.day_of_week})</span>
+                                            </div>
+                                        </div>
+                                        <p class="text-[11px] text-rose-700 mt-2 font-semibold">
+                                            🔒 Official academic classes cannot be displaced. Manual booking is blocked for this slot.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        setButtonDisabled(`⛔ Cannot Book — Class in Session at ${startTime}`);
+                        footerNotice.textContent = `Room occupied by ${data.course_name}`;
+                        footerNotice.className = "text-xs font-semibold text-rose-600";
+
+                    } else if (data.status === "booking_conflict") {
+                        statusContainer.innerHTML = `
+                            <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs flex items-center gap-2">
+                                <span class="text-base">⛔</span>
+                                <div>
+                                    <p class="font-bold">Facility Already Reserved</p>
+                                    <p class="text-rose-700">${data.message}</p>
+                                </div>
+                            </div>
+                        `;
+                        setButtonDisabled("⛔ Slot Already Reserved");
+                        footerNotice.textContent = "Facility already booked";
+                        footerNotice.className = "text-xs font-semibold text-rose-600";
+
+                    } else if (data.status === "sunday") {
+                        statusContainer.innerHTML = `
+                            <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-2">
+                                <span class="text-base">⚠️</span>
+                                <div>
+                                    <p class="font-bold">Campus Closed on Sundays</p>
+                                    <p class="text-amber-700">Please choose a date from Monday to Saturday.</p>
+                                </div>
+                            </div>
+                        `;
+                        setButtonDisabled("Campus Closed on Sundays");
+                        footerNotice.textContent = "Sunday closure";
+                        footerNotice.className = "text-xs font-semibold text-amber-600";
+
+                    } else {
+                        statusContainer.innerHTML = `
+                            <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs">
+                                ${data.message}
+                            </div>
+                        `;
+                        setButtonDisabled("Slot Unavailable");
+                    }
+
+                } else {
+                    isSlotAvailable = true;
+                    statusContainer.innerHTML = `
+                        <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">✓</span>
+                                <span class="font-semibold text-emerald-800">
+                                    Facility is available! No class or booking conflict from ${startTime} to ${endTime}.
+                                </span>
+                            </div>
+                            <span class="font-bold text-[10px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Ready</span>
+                        </div>
+                    `;
+                    setButtonEnabled();
+                    footerNotice.textContent = "Available to reserve";
+                    footerNotice.className = "text-xs font-semibold text-emerald-600";
+                }
+            })
+            .catch(() => {
+                isSlotAvailable = true;
+                setButtonEnabled();
+            });
+    }
+
+    function setButtonDisabled(reasonText) {
+        submitBtn.disabled = true;
+        submitBtn.className = "px-5 py-2.5 rounded-lg bg-slate-200 text-slate-400 font-semibold text-sm cursor-not-allowed border border-slate-300 transition";
+        submitBtn.innerHTML = `<span>${reasonText}</span>`;
+    }
+
+    function setButtonEnabled() {
+        submitBtn.disabled = false;
+        submitBtn.className = "px-5 py-2.5 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white font-semibold text-sm shadow-sm transition cursor-pointer";
+        submitBtn.innerHTML = "Confirm & Reserve Facility";
+    }
+
+    // Attach listeners
+    resourceSelect.addEventListener("change", function () {
+        loadRoomDaySchedule();
+        checkSlotAvailability();
+    });
+
+    dateInput.addEventListener("change", function () {
+        loadRoomDaySchedule();
+        checkSlotAvailability();
+    });
+
+    startTimeSelect.addEventListener("change", checkSlotAvailability);
+    endTimeSelect.addEventListener("change", checkSlotAvailability);
+
+    // Form submit guard
+    form.addEventListener("submit", function (e) {
+        if (!isSlotAvailable || submitBtn.disabled) {
+            e.preventDefault();
+            alert("Cannot submit booking! The selected room is busy with an ongoing class or existing reservation during this hour.");
+            return false;
+        }
+    });
+
+    // Run initial check if preselected
+    if (resourceSelect.value) {
+        loadRoomDaySchedule();
+        checkSlotAvailability();
+    }
+});
+</script>
 {% endblock %}
