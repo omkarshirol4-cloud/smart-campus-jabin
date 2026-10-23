@@ -10,7 +10,7 @@
 
 1. Open PowerShell and start the local server:
    ```powershell
-   cd C:\Users\omkar\.gemini\antigravity\scratch\smart_campus_jabin
+   cd smart_campus_jabin
    .\.venv\Scripts\python.exe app.py
    ```
    *(Or with Docker: `docker compose up -d`)*
