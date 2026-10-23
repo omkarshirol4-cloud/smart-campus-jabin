@@ -30,11 +30,11 @@
 
 ### Step 2: Dynamic Role-Based Login & Custom Identity (45 seconds)
 1. On the login screen (`http://127.0.0.1:5000/login`):
-   - Type your own name into **Your Name or Email** (e.g., `Omkar`).
+   - Type your own name into **Your Name or Email** (e.g., `Omkar Shirol`).
    - Type any password.
    - Select **🎓 Student** and click **Sign In**.
 2. **Show the Evaluator:**
-   - Notice the top navigation bar immediately updates to display `Omkar` as the logged-in student.
+   - Notice the top navigation bar immediately updates to display `Omkar Shirol` as the logged-in student.
    - Point out the **Student Portal** badge and student metric cards.
    - Mention that demo 1-click accounts (`student@demo.edu`, `staff@demo.edu`, `admin@demo.edu`) are also available.
 
@@ -71,7 +71,7 @@
 4. Click **Confirm & Reserve Facility**.
 5. **Show the Evaluator:**
    - The system mathematically blocks the submission:
-     > *"Double Booking Blocked! 'Classroom (digital) 1' is already booked on [Date] between 10:00 and 12:00 (Reserved by: Omkar, Status: Pending)."*
+     > *"Double Booking Blocked! 'Classroom (digital) 1' is already booked on [Date] between 10:00 and 12:00 (Reserved by: Omkar Shirol, Status: Pending)."*
    - Explain the interval intersection logic: `start_time < new_end AND end_time > new_start`.
 
 ---
@@ -79,7 +79,7 @@
 ### Step 6: Admin Approval Workflow & Campus Ledger (45 seconds)
 1. Click **Logout** and sign in as **Admin** (click the **Admin Account** demo button or enter `admin@demo.edu`).
 2. Look at the **Admin Control Center**:
-   - The top table **⚡ Pending Booking Requests** prominently features Omkar's request for Classroom 1.
+   - The top table **⚡ Pending Booking Requests** prominently features Omkar Shirol's request for Classroom 1.
    - Point out the requester's name, role badge (`Student`), facility, date, and purpose.
 3. Click the green **`[✓ Approve]`** button:
    - Status updates instantly to **Approved**.

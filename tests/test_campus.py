@@ -55,12 +55,12 @@ class CampusTestSuite(unittest.TestCase):
 
     def test_03_custom_username_login_and_header_display(self):
         response = self.client.post("/login", data={
-            "email": "Omkar",
+            "email": "Omkar Shirol",
             "password": "myrandompassword99",
             "role": "student"
         }, follow_redirects=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Omkar", response.data)
+        self.assertIn(b"Omkar Shirol", response.data)
         self.assertIn(b"Student", response.data)
 
     def test_04_faculty_custom_login(self):
