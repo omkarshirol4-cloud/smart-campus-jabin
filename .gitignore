@@ -19,5 +19,5 @@ Thumbs.db
 
 # Presentation & Local Helper Scripts
 *.pptx
-generate_ppt*.py
+generate_*.py
 assets/
